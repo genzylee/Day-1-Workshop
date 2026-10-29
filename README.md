@@ -15,11 +15,13 @@ those branches as submodules rather than duplicating their source files.
 | backend/ | backend | Single-file Bun server, zero npm dependencies |
 | frontend/ | frontend | Angular 19 UI, one component and one HTTP service |
 | cli/ | cli | Zero-dependency Node CLI and cross-platform launchers |
+| bundle/ | bundle | Generated release: server, built UI, CLI, and deployment files |
 | .gitmodules | main | Submodule URLs, paths, and tracked branches |
 
 Each submodule is a Git checkout with its own commits. Main records an exact
 commit pointer (a gitlink) for each one; branch tracking does not automatically
-advance those pointers. There is no generated release bundle at this step.
+advance those pointers. The bundle branch contains generated output, not source;
+never hand-edit it.
 
 ## Clone
 
@@ -132,3 +134,48 @@ git submodule update --init --recursive
 
 Use `--remote` only when intentionally advancing a pointer to a tracked branch
 tip. Omit it when reproducing the exact versions recorded on main.
+
+## Generate a Release
+
+From a clean main checkout with Git and npm on PATH and a Git commit identity set:
+
+```sh
+node scripts/build-bundle.mjs
+node scripts/build-bundle.mjs --push
+```
+
+The zero-dependency Node script updates source submodules to their tracked branch
+tips, runs npm install and the Angular build, and requires
+`frontend/dist/snip-frontend/browser/index.html`. It copies the backend and CLI
+unchanged, assembles the UI into bundle/public, and generates runtime and Docker
+configuration. The generated package stays CommonJS-compatible (no type field).
+
+It commits changed bundle output and then the main submodule pointers. Without
+`--push`, all commits stay local. An identical rebuild makes no commits; a later
+`--push` still publishes any pending local commits. Bundle pushes use HEAD:bundle
+so detached submodule checkouts work. Source and bundle submodules must be clean,
+and the superproject must have no staged or tracked non-submodule edits. Unrelated
+untracked superproject files are not staged. Diverged bundle history fails rather
+than being overwritten. A failed build never pushes.
+
+Run the release as one Bun process (the generated .env enables static serving):
+
+```sh
+cd bundle
+bun start
+```
+
+This serves the UI, API, and short redirects at http://localhost:3000. Stop the
+development backend first if it already occupies that port. The bundled CLI is
+also available with `node cli.js ls`. To use another port, set PORT and point the
+CLI's SNIP_API at the same origin. The current web client uses localhost:3000.
+
+From bundle/, Docker users can run:
+
+```sh
+docker build -t snip .
+docker run --rm -p 3000:3000 snip
+```
+
+The image includes .env and public/. Railway can build the bundle branch directly
+using its generated railway.json and Dockerfile; main is not a deployable app.
