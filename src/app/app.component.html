@@ -1,0 +1,58 @@
+<main>
+  <header>
+    <h1>Snip<span>.</span></h1>
+    <p class="subtitle">A shorter link. A simpler share.</p>
+  </header>
+  <section class="create-section" aria-labelledby="create-heading">
+    <h2 id="create-heading">Shorten a link</h2>
+    <form (ngSubmit)="shorten()" novalidate>
+      <label for="url">Original URL</label>
+      <div class="input-row">
+        <input id="url" name="url" type="url" [ngModel]="url()" (ngModelChange)="url.set($event)"
+          placeholder="https://example.com/something-worth-sharing" autocomplete="url"
+          [readOnly]="saving()" [attr.aria-invalid]="formError() ? 'true' : null"
+          [attr.aria-describedby]="formError() ? 'form-error' : null" required>
+        <button type="submit" [disabled]="saving()">{{ saving() ? 'Shortening...' : 'Shorten link' }}</button>
+      </div>
+      @if (formError()) {
+        <p id="form-error" class="error" role="alert">{{ formError() }}</p>
+      }
+    </form>
+    <div aria-live="polite">
+      @if (result(); as link) {
+        <div class="result">
+          <span>Your short link</span>
+          <a [href]="link.shortUrl" target="_blank" rel="noopener noreferrer">{{ link.shortUrl }}</a>
+        </div>
+      }
+    </div>
+  </section>
+  <section class="links-section" aria-labelledby="links-heading" [attr.aria-busy]="loading()">
+    <div class="section-heading">
+      <div class="heading-with-count"><h2 id="links-heading">Your links</h2><span class="count">{{ links().length }}</span></div>
+      <button class="secondary" type="button" (click)="refresh()" [disabled]="loading()">
+        {{ loading() ? 'Refreshing...' : 'Refresh' }}
+      </button>
+    </div>
+    @if (listError()) {
+      <p class="error" role="alert">{{ listError() }}</p>
+    }
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th scope="col">Short code</th><th scope="col">Original URL</th><th scope="col" class="hits">Hits</th></tr></thead>
+        <tbody>
+          @for (link of links(); track link.code) {
+            <tr>
+              <td class="code"><a [href]="link.shortUrl" target="_blank" rel="noopener noreferrer">{{ link.code }}</a></td>
+              <td class="original"><a [href]="link.url" target="_blank" rel="noopener noreferrer">{{ link.url }}</a></td>
+              <td class="hits">{{ link.hits }}</td>
+            </tr>
+          } @empty {
+            <tr><td colspan="3" class="empty">{{ loading() ? 'Loading links...' : listError() ? 'Links are unavailable.' : 'No links yet.' }}</td></tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+  <footer>Snip / URL shortener</footer>
+</main>
