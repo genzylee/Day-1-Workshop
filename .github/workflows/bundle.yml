@@ -1,0 +1,58 @@
+name: Build bundle
+
+on:
+  # Push workflows are read from the pushed branch. This file exists only on
+  # main, so pushes to backend/frontend/cli cannot invoke it.
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: build-bundle
+  cancel-in-progress: false
+
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out main and submodules
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          submodules: true
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Configure Git identity
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+      - name: Build and publish bundle
+        id: build
+        run: |
+          before=$(git rev-parse HEAD:bundle)
+          node scripts/build-bundle.mjs --push
+          after=$(git rev-parse HEAD:bundle)
+          if [ "$before" != "$after" ]; then
+            echo 'changed=true' >> "$GITHUB_OUTPUT"
+          fi
+
+      # GITHUB_TOKEN pushes cannot trigger another push workflow. Dispatch the
+      # image workflow explicitly only when a new release pointer was published.
+      - name: Dispatch image build for changed release
+        if: steps.build.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run docker.yml --ref main
